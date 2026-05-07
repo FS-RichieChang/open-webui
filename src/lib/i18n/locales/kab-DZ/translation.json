@@ -2316,5 +2316,16 @@
 	"Your usage stats have been successfully synced.": "",
 	"YouTube": "YouTube",
 	"Youtube Language": "Tutlayt n Youtube",
-	"Youtube Proxy URL": "Tansa URL n upṛuksi Youtube"
+	"Youtube Proxy URL": "Tansa URL n upṛuksi Youtube",
+	"Token Limit": "",
+	"Token Rate Limiting": "",
+	"Token Rate Limiting (Override)": "",
+	"Token Usage": "",
+	"Enable Token Rate Limit": "",
+	"This Month": "",
+	"This Week": "",
+	"Remaining": "",
+	"Resets at": "",
+	"Unlimited": "",
+	"Period": ""
 }

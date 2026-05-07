@@ -2319,5 +2319,16 @@
 	"Your usage stats have been successfully synced.": "Les teves estadístiques d'ús s'han sincronitzat correctament.",
 	"YouTube": "Youtube",
 	"Youtube Language": "Idioma de YouTube",
-	"Youtube Proxy URL": "URL de Proxy de Youtube"
+	"Youtube Proxy URL": "URL de Proxy de Youtube",
+	"Token Limit": "",
+	"Token Rate Limiting": "",
+	"Token Rate Limiting (Override)": "",
+	"Token Usage": "",
+	"Enable Token Rate Limit": "",
+	"This Month": "",
+	"This Week": "",
+	"Remaining": "",
+	"Resets at": "",
+	"Unlimited": "",
+	"Period": ""
 }

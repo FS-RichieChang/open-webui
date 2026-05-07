@@ -6,7 +6,13 @@
 
 	import { goto } from '$app/navigation';
 
-	import { updateUserById, getUserGroupsById, getUserTokenLimit, updateUserTokenLimit } from '$lib/apis/users';
+	import {
+		updateUserById,
+		getUserGroupsById,
+		getUserTokenLimit,
+		updateUserTokenLimit,
+		getUserTokenUsage
+	} from '$lib/apis/users';
 
 	import Modal from '$lib/components/common/Modal.svelte';
 	import Switch from '$lib/components/common/Switch.svelte';
@@ -33,6 +39,7 @@
 			_user.password = '';
 			loadUserGroups();
 			loadTokenLimit();
+			loadTokenUsage();
 		}
 	};
 
@@ -47,6 +54,12 @@
 	let userGroups: any[] | null = null;
 
 	let tokenLimit = { enabled: false, limit: 0, period: 'daily' };
+	let tokenUsage: {
+		daily: { used: number; limit: number; remaining: number; reset_at: number };
+		weekly: { used: number; limit: number; remaining: number; reset_at: number };
+		monthly: { used: number; limit: number; remaining: number; reset_at: number };
+		limit_config: { enabled: boolean; limit: number; period: string } | null;
+	} | null = null;
 
 	const submitHandler = async () => {
 		const res = await updateUserById(localStorage.token, selectedUser.id, _user).catch((error) => {
@@ -76,11 +89,18 @@
 	const loadTokenLimit = async () => {
 		if (!selectedUser?.id) return;
 		const res = await getUserTokenLimit(localStorage.token, selectedUser.id).catch(() => null);
-		if (res) {
-			tokenLimit = res;
-		} else {
-			tokenLimit = { enabled: false, limit: 0, period: 'daily' };
-		}
+		tokenLimit = res ?? { enabled: false, limit: 0, period: 'daily' };
+	};
+
+	const loadTokenUsage = async () => {
+		if (!selectedUser?.id) return;
+		tokenUsage = await getUserTokenUsage(localStorage.token, selectedUser.id).catch(() => null);
+	};
+
+	const formatNumber = (n: number) => n.toLocaleString();
+
+	const formatResetAt = (epoch: number) => {
+		return new Date(epoch * 1000).toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
 	};
 </script>
 
@@ -234,6 +254,52 @@
 									</div>
 								</div>
 							</div>
+						</div>
+
+						<hr class="my-3 border-gray-100 dark:border-gray-800" />
+
+						<div class="flex flex-col w-full">
+							<div class="mb-2 text-xs font-medium text-gray-500">{$i18n.t('Token Usage')}</div>
+
+							{#if tokenUsage}
+								{@const limitPeriod = tokenUsage.limit_config?.period ?? null}
+								<div class="flex flex-col gap-1.5 text-xs">
+									{#each [['daily', $i18n.t('Today')], ['weekly', $i18n.t('This Week')], ['monthly', $i18n.t('This Month')]] as [period, label]}
+										{@const info = tokenUsage[period]}
+										{@const isLimited = limitPeriod === period}
+										<div class="flex flex-col gap-0.5">
+											<div class="flex items-center justify-between">
+												<span class="text-gray-500">{label}</span>
+												<span class="font-medium dark:text-gray-300">
+													{formatNumber(info.used)}
+													{$i18n.t('tokens')}
+													{#if isLimited}
+														/ {formatNumber(info.limit)}
+													{/if}
+												</span>
+											</div>
+											{#if isLimited && info.limit > 0}
+												<div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1">
+													<div
+														class="h-1 rounded-full transition-all {info.used >= info.limit
+															? 'bg-red-500'
+															: info.used / info.limit > 0.8
+																? 'bg-yellow-400'
+																: 'bg-blue-500'}"
+														style="width: {Math.min(100, (info.used / info.limit) * 100).toFixed(1)}%"
+													></div>
+												</div>
+												<div class="flex justify-between text-gray-400">
+													<span>{$i18n.t('Remaining')}: {formatNumber(info.remaining)}</span>
+													<span>{$i18n.t('Resets at')}: {formatResetAt(info.reset_at)}</span>
+												</div>
+											{/if}
+										</div>
+									{/each}
+								</div>
+							{:else}
+								<div class="text-xs text-gray-400">{$i18n.t('Loading...')}</div>
+							{/if}
 						</div>
 
 						<hr class="my-3 border-gray-100 dark:border-gray-800" />

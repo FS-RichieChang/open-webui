@@ -2316,5 +2316,16 @@
 	"Your usage stats have been successfully synced.": "",
 	"YouTube": "Youtube",
 	"Youtube Language": "Γλώσσα YouTube",
-	"Youtube Proxy URL": "URL Διακομιστή Μεσολάβησης YouTube"
+	"Youtube Proxy URL": "URL Διακομιστή Μεσολάβησης YouTube",
+	"Token Limit": "",
+	"Token Rate Limiting": "",
+	"Token Rate Limiting (Override)": "",
+	"Token Usage": "",
+	"Enable Token Rate Limit": "",
+	"This Month": "",
+	"This Week": "",
+	"Remaining": "",
+	"Resets at": "",
+	"Unlimited": "",
+	"Period": ""
 }

@@ -2313,5 +2313,16 @@
 	"Your usage stats have been successfully synced.": "",
 	"YouTube": "YouTube",
 	"Youtube Language": "ภาษาของ YouTube",
-	"Youtube Proxy URL": "URL พร็อกซี YouTube"
+	"Youtube Proxy URL": "URL พร็อกซี YouTube",
+	"Token Limit": "",
+	"Token Rate Limiting": "",
+	"Token Rate Limiting (Override)": "",
+	"Token Usage": "",
+	"Enable Token Rate Limit": "",
+	"This Month": "",
+	"This Week": "",
+	"Remaining": "",
+	"Resets at": "",
+	"Unlimited": "",
+	"Period": ""
 }

@@ -2316,5 +2316,16 @@
 	"Your usage stats have been successfully synced.": "Kullanım istatistikleriniz başarıyla eşitlendi.",
 	"YouTube": "Youtube",
 	"Youtube Language": "Youtube Dili",
-	"Youtube Proxy URL": "Youtube Vekil URL'si"
+	"Youtube Proxy URL": "Youtube Vekil URL'si",
+	"Token Limit": "",
+	"Token Rate Limiting": "",
+	"Token Rate Limiting (Override)": "",
+	"Token Usage": "",
+	"Enable Token Rate Limit": "",
+	"This Month": "",
+	"This Week": "",
+	"Remaining": "",
+	"Resets at": "",
+	"Unlimited": "",
+	"Period": ""
 }

@@ -702,6 +702,18 @@ async def get_user_token_limit(
     return info.get('token_limit', {'enabled': False, 'limit': 0, 'period': 'daily'})
 
 
+@router.get('/{user_id}/token-usage')
+async def get_user_token_usage_by_id(
+    user_id: str, session_user=Depends(get_admin_user), db: AsyncSession = Depends(get_async_session)
+):
+    from open_webui.utils.token_limit import get_token_usage_info
+
+    user = await Users.get_user_by_id(user_id, db=db)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=ERROR_MESSAGES.NOT_FOUND)
+    return await get_token_usage_info(user, db)
+
+
 @router.put('/{user_id}/token-limit')
 async def update_user_token_limit(
     user_id: str,

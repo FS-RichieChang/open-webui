@@ -2313,5 +2313,16 @@
 	"Your usage stats have been successfully synced.": "",
 	"YouTube": "YouTube",
 	"Youtube Language": "YouTubeの言語",
-	"Youtube Proxy URL": "YouTubeのプロキシURL"
+	"Youtube Proxy URL": "YouTubeのプロキシURL",
+	"Token Limit": "",
+	"Token Rate Limiting": "",
+	"Token Rate Limiting (Override)": "",
+	"Token Usage": "",
+	"Enable Token Rate Limit": "",
+	"This Month": "",
+	"This Week": "",
+	"Remaining": "",
+	"Resets at": "",
+	"Unlimited": "",
+	"Period": ""
 }

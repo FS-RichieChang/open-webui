@@ -1,3 +1,4 @@
+import asyncio
 import datetime as dt
 import logging
 
@@ -22,6 +23,61 @@ def get_period_start(period: str) -> int:
     else:
         start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     return int(start.timestamp())
+
+
+def get_next_period_start(period: str) -> int:
+    """Return UTC epoch seconds for the start of the next period (= reset time)."""
+    now = dt.datetime.now(dt.timezone.utc)
+    if period == 'daily':
+        reset = (now + dt.timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    elif period == 'weekly':
+        days_until_monday = (7 - now.weekday()) % 7 or 7
+        reset = (now + dt.timedelta(days=days_until_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+    elif period == 'monthly':
+        if now.month == 12:
+            reset = now.replace(year=now.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        else:
+            reset = now.replace(month=now.month + 1, day=1, hour=0, minute=0, second=0, microsecond=0)
+    else:
+        reset = (now + dt.timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    return int(reset.timestamp())
+
+
+async def get_token_usage_info(user: UserModel, db=None) -> dict:
+    """
+    Return token usage for all three periods (daily/weekly/monthly),
+    regardless of whether a limit is configured.
+    """
+    async with get_async_db_context(db) as db:
+        limit_config = await get_effective_token_limit(user, db)
+
+        daily_start = get_period_start('daily')
+        weekly_start = get_period_start('weekly')
+        monthly_start = get_period_start('monthly')
+
+        daily_used, weekly_used, monthly_used = await asyncio.gather(
+            ChatMessages.get_user_token_usage_since(user.id, daily_start, db),
+            ChatMessages.get_user_token_usage_since(user.id, weekly_start, db),
+            ChatMessages.get_user_token_usage_since(user.id, monthly_start, db),
+        )
+
+        def _build_period(used: int, period: str) -> dict:
+            active = limit_config is not None and limit_config.get('period') == period
+            limit = limit_config.get('limit', 0) if active else 0
+            remaining = max(0, limit - used) if active else -1
+            return {
+                'used': used,
+                'limit': limit,
+                'remaining': remaining,
+                'reset_at': get_next_period_start(period),
+            }
+
+        return {
+            'daily': _build_period(daily_used, 'daily'),
+            'weekly': _build_period(weekly_used, 'weekly'),
+            'monthly': _build_period(monthly_used, 'monthly'),
+            'limit_config': limit_config,
+        }
 
 
 async def get_effective_token_limit(user: UserModel, db=None) -> dict | None:
