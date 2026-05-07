@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Upstream Repository Rules
+
+This is a fork of `open-webui/open-webui`. **Never create a PR to the upstream repository**, and never push any code there. You may fetch or pull updates from upstream to keep this fork in sync, but all changes stay in this fork only.
+
 ## What This Project Is
 
 Open WebUI is a self-hosted AI chat platform with a SvelteKit frontend (SPA, no SSR) and a FastAPI backend. It supports Ollama, OpenAI-compatible APIs, and direct connections to Anthropic, Google Gemini, and other providers. Key capabilities include RAG, web search, image generation, voice/video, Python function calling (via Pyodide and Pipelines), MCP tool servers, and real-time collaboration over WebSockets.
