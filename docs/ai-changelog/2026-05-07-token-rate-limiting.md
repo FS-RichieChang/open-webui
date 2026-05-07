@@ -6,6 +6,8 @@
 - `495b1a9c` — feat: add token rate limiting for users and groups
 - `1400ba04` — docs: add ai-changelog for token rate limiting feature
 - `9f87a08e` — feat: add token usage display for all three periods in admin user modal
+- `004c742b` — docs: update ai-changelog to include token usage display changes
+- `9a0a5c33` — i18n: add German translations for token rate limiting keys
 
 ---
 
@@ -35,7 +37,8 @@
 | `src/lib/i18n/locales/en-US/translation.json` | 新增翻譯鍵值 |
 | `src/lib/i18n/locales/zh-TW/translation.json` | 新增繁體中文翻譯 |
 | `src/lib/i18n/locales/zh-CN/translation.json` | 新增簡體中文翻譯 |
-| 其餘 58 個語系 `translation.json` | 批次插入空字串佔位鍵值 |
+| `src/lib/i18n/locales/de-DE/translation.json` | 新增德文翻譯 |
+| 其餘 57 個語系 `translation.json` | 批次插入空字串佔位鍵值 |
 
 ---
 
@@ -94,6 +97,6 @@
 - [x] **前端用量顯示**：Admin Edit User modal 已顯示今日／本週／本月用量，有設限時顯示進度條與重置時間。
 - [ ] **使用者自助查詢**：在聊天介面或使用者個人設定頁顯示自己的用量，讓使用者不必等到 429 才知道快超限。
 - [ ] **PostgreSQL 搬遷**：當使用者規模擴大時，將資料庫從 SQLite 切換至 PostgreSQL。
-- [ ] **其他語言 i18n**：en-US、zh-TW、zh-CN 已完整翻譯；其餘 58 個語系為空字串佔位，需各語系貢獻者補譯。
+- [ ] **其他語言 i18n**：en-US、zh-TW、zh-CN、de-DE 已完整翻譯；其餘 57 個語系為空字串佔位，需各語系貢獻者補譯。
 - [ ] **自動重置通知**：周期重置後可考慮透過 WebSocket 推播通知給受限使用者。
 - [ ] **用量報表整合**：在 Admin Analytics 儀表板整合限流設定與實際用量的對照視圖。
