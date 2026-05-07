@@ -517,6 +517,45 @@ class ChatMessageTable:
                 for row in result.all()
             }
 
+    async def get_user_token_usage_since(
+        self,
+        user_id: str,
+        start_time: int,
+        db: Optional[AsyncSession] = None,
+    ) -> int:
+        """Sum total tokens used by a user since start_time (epoch seconds)."""
+        async with get_async_db_context(db) as db:
+            bind = await db.connection()
+            dialect = bind.dialect.name
+
+            if dialect == 'sqlite':
+                input_tokens = cast(func.json_extract(ChatMessage.usage, '$.input_tokens'), Integer)
+                output_tokens = cast(func.json_extract(ChatMessage.usage, '$.output_tokens'), Integer)
+            elif dialect == 'postgresql':
+                input_tokens = cast(
+                    func.json_extract_path_text(ChatMessage.usage, 'input_tokens'),
+                    Integer,
+                )
+                output_tokens = cast(
+                    func.json_extract_path_text(ChatMessage.usage, 'output_tokens'),
+                    Integer,
+                )
+            else:
+                raise NotImplementedError(f'Unsupported dialect: {dialect}')
+
+            stmt = select(
+                func.coalesce(func.sum(input_tokens + output_tokens), 0).label('total_tokens'),
+            ).filter(
+                ChatMessage.role == 'assistant',
+                ChatMessage.user_id == user_id,
+                ChatMessage.usage.isnot(None),
+                ChatMessage.created_at >= start_time,
+            )
+
+            result = await db.execute(stmt)
+            row = result.one()
+            return int(row.total_tokens)
+
     async def get_message_count_by_user(
         self,
         start_date: Optional[int] = None,

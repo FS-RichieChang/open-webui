@@ -6,9 +6,10 @@
 
 	import { goto } from '$app/navigation';
 
-	import { updateUserById, getUserGroupsById } from '$lib/apis/users';
+	import { updateUserById, getUserGroupsById, getUserTokenLimit, updateUserTokenLimit } from '$lib/apis/users';
 
 	import Modal from '$lib/components/common/Modal.svelte';
+	import Switch from '$lib/components/common/Switch.svelte';
 	import localizedFormat from 'dayjs/plugin/localizedFormat';
 	import XMark from '$lib/components/icons/XMark.svelte';
 	import SensitiveInput from '$lib/components/common/SensitiveInput.svelte';
@@ -31,6 +32,7 @@
 			_user = selectedUser;
 			_user.password = '';
 			loadUserGroups();
+			loadTokenLimit();
 		}
 	};
 
@@ -44,8 +46,14 @@
 
 	let userGroups: any[] | null = null;
 
+	let tokenLimit = { enabled: false, limit: 0, period: 'daily' };
+
 	const submitHandler = async () => {
 		const res = await updateUserById(localStorage.token, selectedUser.id, _user).catch((error) => {
+			toast.error(`${error}`);
+		});
+
+		await updateUserTokenLimit(localStorage.token, selectedUser.id, tokenLimit).catch((error) => {
 			toast.error(`${error}`);
 		});
 
@@ -63,6 +71,16 @@
 			toast.error(`${error}`);
 			return null;
 		});
+	};
+
+	const loadTokenLimit = async () => {
+		if (!selectedUser?.id) return;
+		const res = await getUserTokenLimit(localStorage.token, selectedUser.id).catch(() => null);
+		if (res) {
+			tokenLimit = res;
+		} else {
+			tokenLimit = { enabled: false, limit: 0, period: 'daily' };
+		}
 	};
 </script>
 
@@ -215,6 +233,47 @@
 										</div>
 									</div>
 								</div>
+							</div>
+						</div>
+
+						<hr class="my-3 border-gray-100 dark:border-gray-800" />
+
+						<div class="flex flex-col w-full">
+							<div class="mb-1.5 text-xs font-medium text-gray-500">
+								{$i18n.t('Token Rate Limiting (Override)')}
+							</div>
+
+							<div class="flex flex-col gap-2">
+								<div class="flex w-full items-center justify-between">
+									<div class="text-xs font-medium">{$i18n.t('Enable Token Rate Limit')}</div>
+									<Switch bind:state={tokenLimit.enabled} />
+								</div>
+
+								{#if tokenLimit.enabled}
+									<div class="ml-2 flex flex-col gap-2">
+										<div class="flex w-full items-center justify-between">
+											<div class="text-xs font-medium">{$i18n.t('Token Limit')}</div>
+											<input
+												type="number"
+												min="1"
+												class="w-32 rounded-lg text-sm bg-transparent outline-none border border-gray-100 dark:border-gray-600 px-2 py-1 text-right dark:text-gray-300"
+												bind:value={tokenLimit.limit}
+											/>
+										</div>
+
+										<div class="flex w-full items-center justify-between">
+											<div class="text-xs font-medium">{$i18n.t('Period')}</div>
+											<select
+												class="rounded-lg text-sm bg-transparent outline-none border border-gray-100 dark:border-gray-600 px-2 py-1 dark:text-gray-300"
+												bind:value={tokenLimit.period}
+											>
+												<option value="daily">{$i18n.t('Daily')}</option>
+												<option value="weekly">{$i18n.t('Weekly')}</option>
+												<option value="monthly">{$i18n.t('Monthly')}</option>
+											</select>
+										</div>
+									</div>
+								{/if}
 							</div>
 						</div>
 
