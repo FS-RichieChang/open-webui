@@ -2,19 +2,22 @@
 
 **日期**：2026-05-07
 **分支**：`claude/add-user-group-settings-Ci255`
-**Commit**：`495b1a9c`
+**Commits**：
+- `495b1a9c` — feat: add token rate limiting for users and groups
+- `1400ba04` — docs: add ai-changelog for token rate limiting feature
+- `9f87a08e` — feat: add token usage display for all three periods in admin user modal
 
 ---
 
 ## 1. 修改摘要
 
-新增對使用者與群組的 Token 用量限流功能。管理員可在群組權限設定或使用者編輯頁面，設定每個周期（每日／每週／每月）的 Token 上限。當使用者累計用量達到上限時，系統拒絕新的聊天請求並回傳 HTTP 429。
+新增對使用者與群組的 Token 用量**限流**與**用量顯示**功能。管理員可在群組權限設定或使用者編輯頁面，設定每個周期（每日／每週／每月）的 Token 上限。當使用者累計用量達到上限時，系統拒絕新的聊天請求並回傳 HTTP 429。此外，管理員編輯任一使用者時，可直接看到該使用者今日／本週／本月的 Token 用量，有設限時並顯示進度條與重置時間。
 
 ### 新增檔案
 
 | 檔案 | 說明 |
 |------|------|
-| `backend/open_webui/utils/token_limit.py` | 核心限流邏輯：計算有效限制、查詢用量、拋出 429 |
+| `backend/open_webui/utils/token_limit.py` | 核心限流邏輯：計算有效限制、查詢用量、拋出 429、回傳三周期用量 |
 | `docs/ai-changelog/2026-05-07-token-rate-limiting.md` | 本文件 |
 
 ### 修改檔案
@@ -23,13 +26,16 @@
 |------|---------|
 | `backend/open_webui/models/chat_messages.py` | 新增 `get_user_token_usage_since(user_id, start_time, db)` 方法 |
 | `backend/open_webui/models/users.py` | 新增 `UserTokenLimitForm` Pydantic schema |
-| `backend/open_webui/routers/users.py` | 新增 `GET/PUT /{user_id}/token-limit` 兩個 Admin API 端點 |
+| `backend/open_webui/routers/users.py` | 新增 `GET/PUT /{user_id}/token-limit`、`GET /{user_id}/token-usage` 共三個 Admin API 端點 |
 | `backend/open_webui/utils/chat.py` | 在 `generate_chat_completion()` 加入 `check_token_limit(user)` 呼叫 |
 | `src/lib/constants/permissions.ts` | `DEFAULT_PERMISSIONS` 加入 `token_limit` 預設值 |
-| `src/lib/apis/users/index.ts` | 新增 `getUserTokenLimit()`、`updateUserTokenLimit()` |
+| `src/lib/apis/users/index.ts` | 新增 `getUserTokenLimit()`、`updateUserTokenLimit()`、`getUserTokenUsage()` |
 | `src/lib/components/admin/Users/Groups/Permissions.svelte` | 群組權限頁新增 Token Rate Limiting 區塊 |
-| `src/lib/components/admin/Users/UserList/EditUserModal.svelte` | 使用者編輯 modal 新增個人限流覆蓋設定 |
+| `src/lib/components/admin/Users/UserList/EditUserModal.svelte` | 使用者編輯 modal 新增 Token Usage 用量顯示區塊與個人限流覆蓋設定 |
 | `src/lib/i18n/locales/en-US/translation.json` | 新增翻譯鍵值 |
+| `src/lib/i18n/locales/zh-TW/translation.json` | 新增繁體中文翻譯 |
+| `src/lib/i18n/locales/zh-CN/translation.json` | 新增簡體中文翻譯 |
+| 其餘 58 個語系 `translation.json` | 批次插入空字串佔位鍵值 |
 
 ---
 
@@ -66,7 +72,8 @@
 
 ### 前端
 - Admin → Users → Groups → Permissions 頁底部新增「Token Rate Limiting」設定區塊。
-- Admin → Users → Edit User modal 新增「Token Rate Limiting (Override)」設定區塊。
+- Admin → Users → Edit User modal 新增「Token Usage」用量顯示區塊（今日／本週／本月，有設限時顯示進度條與重置時間）。
+- Admin → Users → Edit User modal 新增「Token Rate Limiting (Override)」個人限流覆蓋設定區塊。
 
 ---
 
@@ -84,8 +91,9 @@
 
 - [ ] **Redis 快取**：將當前周期累計用量快取至 Redis，減少 DB 查詢次數，提升高流量下的效能。
 - [ ] **直接連接限流**：在 `generate_direct_chat_completion()` 也加入 `check_token_limit()` 呼叫。
-- [ ] **前端用量顯示**：在聊天介面或使用者設定頁顯示目前周期已用 / 剩餘 Token 量，讓使用者自行掌握。
+- [x] **前端用量顯示**：Admin Edit User modal 已顯示今日／本週／本月用量，有設限時顯示進度條與重置時間。
+- [ ] **使用者自助查詢**：在聊天介面或使用者個人設定頁顯示自己的用量，讓使用者不必等到 429 才知道快超限。
 - [ ] **PostgreSQL 搬遷**：當使用者規模擴大時，將資料庫從 SQLite 切換至 PostgreSQL。
-- [ ] **其他語言 i18n**：目前只更新了 `en-US`，其他語系的翻譯需補齊。
+- [ ] **其他語言 i18n**：en-US、zh-TW、zh-CN 已完整翻譯；其餘 58 個語系為空字串佔位，需各語系貢獻者補譯。
 - [ ] **自動重置通知**：周期重置後可考慮透過 WebSocket 推播通知給受限使用者。
 - [ ] **用量報表整合**：在 Admin Analytics 儀表板整合限流設定與實際用量的對照視圖。
