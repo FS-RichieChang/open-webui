@@ -47,6 +47,11 @@ async def get_token_usage_info(user: UserModel, db=None) -> dict:
     """
     Return token usage for all three periods (daily/weekly/monthly),
     regardless of whether a limit is configured.
+
+    NOTE: 'used' reflects the individual user's personal usage.
+    When a group shared-pool limit applies, the 'limit' shown is the group limit
+    but 'remaining' is computed against personal usage (not group total).
+    This is a known display limitation; enforcement in check_token_limit is accurate.
     """
     async with get_async_db_context(db) as db:
         limit_config = await get_effective_token_limit(user, db)
@@ -82,9 +87,13 @@ async def get_token_usage_info(user: UserModel, db=None) -> dict:
 
 async def get_effective_token_limit(user: UserModel, db=None) -> dict | None:
     """
-    Return the token limit config that applies to this user, or None if unlimited.
-    User's personal setting takes priority over group settings.
-    Among groups, the most permissive (highest limit) applies.
+    Return a representative token limit config for UI display purposes, or None if unlimited.
+
+    Priority:
+    1. User's personal override (if enabled) — individual limit.
+    2. Group limits — returns the most restrictive (smallest limit) among all enabled
+       group configs. Used only for display; actual enforcement checks every group
+       independently via check_token_limit().
     """
     user_info = user.info or {}
     user_token_limit = user_info.get('token_limit', {})
@@ -92,36 +101,75 @@ async def get_effective_token_limit(user: UserModel, db=None) -> dict | None:
         return user_token_limit
 
     groups = await Groups.get_groups_by_member_id(user.id, db)
-    best: dict | None = None
+    most_restrictive: dict | None = None
     for group in groups:
         group_permissions = group.permissions or {}
         cfg = group_permissions.get('token_limit', {})
-        if cfg.get('enabled'):
-            if best is None or cfg.get('limit', 0) > best.get('limit', 0):
-                best = cfg
+        if cfg.get('enabled') and cfg.get('limit', 0) > 0:
+            if most_restrictive is None or cfg.get('limit', 0) < most_restrictive.get('limit', 0):
+                most_restrictive = cfg
 
-    return best
+    return most_restrictive
 
 
 async def check_token_limit(user: UserModel) -> None:
-    """Raise HTTP 429 if the user has exceeded their token quota for the current period."""
+    """
+    Raise HTTP 429 if the user has exceeded any applicable token quota.
+
+    Rules:
+    - Personal override takes priority over group limits.
+    - Group limits use a shared pool: all group members' usage is summed.
+    - Each group is checked independently; different periods are independent constraints.
+      A user in Group A (daily) and Group B (monthly) must satisfy both limits.
+    """
     async with get_async_db_context() as db:
-        limit_config = await get_effective_token_limit(user, db)
-        if limit_config is None:
+        # 1. Personal override — individual usage check, takes priority
+        user_info = user.info or {}
+        user_token_limit = user_info.get('token_limit', {})
+        if user_token_limit.get('enabled'):
+            limit = user_token_limit.get('limit', 0)
+            period = user_token_limit.get('period', 'daily')
+            if limit > 0:
+                usage = await ChatMessages.get_user_token_usage_since(
+                    user.id, get_period_start(period), db
+                )
+                if usage >= limit:
+                    _raise_limit_exceeded(usage, limit, period)
             return
 
-        limit = limit_config.get('limit', 0)
-        period = limit_config.get('period', 'daily')
+        # 2. Group limits — shared pool, each group checked independently
+        groups = await Groups.get_groups_by_member_id(user.id, db)
+        for group in groups:
+            cfg = (group.permissions or {}).get('token_limit', {})
+            if not cfg.get('enabled'):
+                continue
+            limit = cfg.get('limit', 0)
+            if limit <= 0:
+                continue
+            period = cfg.get('period', 'daily')
 
-        if limit <= 0:
-            return
+            member_ids = await Groups.get_group_user_ids_by_id(group.id, db)
+            if not member_ids:
+                continue
 
-        start_time = get_period_start(period)
-        usage = await ChatMessages.get_user_token_usage_since(user.id, start_time, db)
-
-        if usage >= limit:
-            period_label = {'daily': '每日', 'weekly': '每週', 'monthly': '每月'}.get(period, period)
-            raise HTTPException(
-                status_code=429,
-                detail=f'Token 使用額度已達上限（已用 {usage:,} / 上限 {limit:,} tokens，{period_label}額度）。請等待下個周期後再試。',
+            group_usage = await ChatMessages.get_group_token_usage_since(
+                member_ids, get_period_start(period), db
             )
+            if group_usage >= limit:
+                period_label = {'daily': '每日', 'weekly': '每週', 'monthly': '每月'}.get(period, period)
+                raise HTTPException(
+                    status_code=429,
+                    detail=(
+                        f'群組「{group.name}」Token 使用額度已達上限'
+                        f'（已用 {group_usage:,} / 上限 {limit:,} tokens，{period_label}額度）。'
+                        f'請等待下個周期後再試。'
+                    ),
+                )
+
+
+def _raise_limit_exceeded(usage: int, limit: int, period: str) -> None:
+    period_label = {'daily': '每日', 'weekly': '每週', 'monthly': '每月'}.get(period, period)
+    raise HTTPException(
+        status_code=429,
+        detail=f'Token 使用額度已達上限（已用 {usage:,} / 上限 {limit:,} tokens，{period_label}額度）。請等待下個周期後再試。',
+    )
