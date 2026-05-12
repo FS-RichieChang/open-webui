@@ -91,25 +91,40 @@ async def get_effective_token_limit(user: UserModel, db=None) -> dict | None:
 
     Priority:
     1. User's personal override (if enabled) — individual limit.
-    2. Group limits — returns the most restrictive (smallest limit) among all enabled
-       group configs. Used only for display; actual enforcement checks every group
-       independently via check_token_limit().
+    2. Group limits — for each period, the group with the highest limit (most permissive)
+       is selected. Returns the config with the smallest limit among those winners
+       (most likely to be the binding constraint) for display.
     """
     user_info = user.info or {}
     user_token_limit = user_info.get('token_limit', {})
     if user_token_limit.get('enabled'):
         return user_token_limit
 
-    groups = await Groups.get_groups_by_member_id(user.id, db)
-    most_restrictive: dict | None = None
-    for group in groups:
-        group_permissions = group.permissions or {}
-        cfg = group_permissions.get('token_limit', {})
-        if cfg.get('enabled') and cfg.get('limit', 0) > 0:
-            if most_restrictive is None or cfg.get('limit', 0) < most_restrictive.get('limit', 0):
-                most_restrictive = cfg
+    period_best = _get_best_group_per_period(
+        await Groups.get_groups_by_member_id(user.id, db)
+    )
+    if not period_best:
+        return None
 
-    return most_restrictive
+    # Return the config with the smallest limit (most binding) for display
+    return min(period_best.values(), key=lambda cfg: cfg['limit'])
+
+
+def _get_best_group_per_period(groups) -> dict[str, dict]:
+    """
+    For each period, return the group config with the highest limit (most permissive).
+    Groups without token limits enabled are ignored.
+    Returns: { period: cfg_dict }
+    """
+    period_best: dict[str, dict] = {}
+    for group in groups:
+        cfg = (group.permissions or {}).get('token_limit', {})
+        if not cfg.get('enabled') or cfg.get('limit', 0) <= 0:
+            continue
+        period = cfg.get('period', 'daily')
+        if period not in period_best or cfg['limit'] > period_best[period]['limit']:
+            period_best[period] = {'group': group, **cfg}
+    return period_best
 
 
 async def check_token_limit(user: UserModel) -> None:
@@ -117,10 +132,13 @@ async def check_token_limit(user: UserModel) -> None:
     Raise HTTP 429 if the user has exceeded any applicable token quota.
 
     Rules:
-    - Personal override takes priority over group limits.
+    - Personal override takes priority over group limits (individual usage check).
     - Group limits use a shared pool: all group members' usage is summed.
-    - Each group is checked independently; different periods are independent constraints.
-      A user in Group A (daily) and Group B (monthly) must satisfy both limits.
+    - When a user belongs to multiple groups with limits for the same period,
+      only the most permissive group (highest limit) is checked for that period.
+      Groups without token limits enabled are ignored entirely.
+    - Different periods are independent: a user can be checked against both a
+      daily limit and a monthly limit simultaneously.
     """
     async with get_async_db_context() as db:
         # 1. Personal override — individual usage check, takes priority
@@ -137,21 +155,16 @@ async def check_token_limit(user: UserModel) -> None:
                     _raise_limit_exceeded(usage, limit, period)
             return
 
-        # 2. Group limits — shared pool, each group checked independently
+        # 2. Group limits — per period, check only the most permissive group (shared pool)
         groups = await Groups.get_groups_by_member_id(user.id, db)
-        for group in groups:
-            cfg = (group.permissions or {}).get('token_limit', {})
-            if not cfg.get('enabled'):
-                continue
-            limit = cfg.get('limit', 0)
-            if limit <= 0:
-                continue
-            period = cfg.get('period', 'daily')
+        period_best = _get_best_group_per_period(groups)
 
+        for period, cfg in period_best.items():
+            group = cfg['group']
+            limit = cfg['limit']
             member_ids = await Groups.get_group_user_ids_by_id(group.id, db)
             if not member_ids:
                 continue
-
             group_usage = await ChatMessages.get_group_token_usage_since(
                 member_ids, get_period_start(period), db
             )
