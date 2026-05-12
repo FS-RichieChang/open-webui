@@ -40,7 +40,6 @@ from open_webui.models.functions import Functions
 from open_webui.models.models import Models
 
 from open_webui.utils.models import get_all_models, check_model_access
-from open_webui.utils.token_limit import check_token_limit
 from open_webui.utils.payload import convert_payload_openai_to_ollama
 from open_webui.utils.response import (
     convert_response_ollama_to_openai,
@@ -212,9 +211,6 @@ async def generate_chat_completion(
                 await check_model_access(user, model)
             except Exception as e:
                 raise e
-
-        # Enforce token rate limit for all users (including admins)
-        await check_token_limit(user)
 
         # Arena model — sub-model was already resolved by process_chat_payload.
         # Inject selected_model_id into the response for the frontend.
