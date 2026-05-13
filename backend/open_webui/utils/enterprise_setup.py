@@ -26,6 +26,14 @@ class Filter:
             await check_token_limit(user)
         except HTTPException as e:
             raise Exception(e.detail)
+
+        # Inject stream_options so OpenAI-compatible providers always return usage data.
+        # Ollama payloads are converted server-side and this key is stripped automatically.
+        if body.get('stream', True):
+            so = body.get('stream_options') or {}
+            if not so.get('include_usage'):
+                body['stream_options'] = {**so, 'include_usage': True}
+
         return body
 '''
 
@@ -39,12 +47,15 @@ async def seed_enterprise_filters() -> None:
 
     existing = await Functions.get_function_by_id(_TOKEN_RATE_LIMIT_FILTER_ID)
     if existing:
-        # Ensure it remains global and active even if someone toggled it off.
+        # Always sync code + ensure global/active so changes here take effect on restart.
+        update: dict = {}
+        if existing.content != _TOKEN_RATE_LIMIT_FILTER_CODE:
+            update['content'] = _TOKEN_RATE_LIMIT_FILTER_CODE
         if not existing.is_global or not existing.is_active:
-            await Functions.update_function_by_id(
-                _TOKEN_RATE_LIMIT_FILTER_ID,
-                {'is_global': True, 'is_active': True},
-            )
+            update['is_global'] = True
+            update['is_active'] = True
+        if update:
+            await Functions.update_function_by_id(_TOKEN_RATE_LIMIT_FILTER_ID, update)
         return
 
     result = await Functions.insert_new_function(
