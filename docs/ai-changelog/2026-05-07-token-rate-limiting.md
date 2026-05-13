@@ -12,6 +12,7 @@
 - `b71377d6` — refactor: move token rate limit enforcement from chat.py to Global Filter
 - `79795feb` — feat: group token limit uses shared pool with independent period checks
 - `b334967c` — fix: group token limit uses most permissive group per period
+- `0b005aa1` — fix: inject stream_options include_usage in enterprise filter inlet
 
 ---
 
@@ -52,6 +53,16 @@
 - `chat.py`：移除我們的修改，完全回歸 upstream 原始狀態
 - `enterprise_setup.py`：啟動時自動在 DB 安裝 `enterprise-token-rate-limit` Global Filter，Filter 的 `inlet` hook 執行限流檢查
 - 好處：`chat.py` 未來 rebase 不再有衝突風險
+
+### Bug Fix：Token 用量永遠顯示 0
+
+**根本原因**：OpenAI-compatible streaming 預設不回傳 usage 資料，需在請求中帶 `stream_options: {include_usage: true}` 才會包含。前端僅在 model 設定 `capabilities.usage: true` 時才加這個參數，導致多數 model 的 `chat_message.usage` 永遠是 NULL，Token 計數顯示 0。
+
+**修復**：在 Enterprise Filter 的 `inlet` 自動注入 `stream_options: {include_usage: true}`（僅 stream 模式）：
+- **OpenAI-compatible / LiteLLM**：provider 收到參數後回傳 usage，middleware 正確存入 DB
+- **Ollama**：payload 轉換函式 `convert_payload_openai_to_ollama` 只複製已知欄位，此參數自動被忽略（Ollama 天生在 final chunk 回傳 `eval_count`）
+
+同步機制升級：`seed_enterprise_filters()` 現在每次啟動都比對 filter code，有變更即自動更新 DB，不需手動刪除紀錄。
 
 ---
 
