@@ -12,9 +12,20 @@ Token Rate Limit Filter (Enterprise)
 Enforces per-user and group token quotas configured via Admin UI.
 Do not delete or disable this filter — it is required for token rate limiting.
 """
+import asyncio
 from fastapi import HTTPException
 from open_webui.models.users import UserModel
-from open_webui.utils.token_limit import check_token_limit
+from open_webui.utils.token_limit import get_remaining_token_budget
+
+# Per-user locks to serialize concurrent inlet checks for the same user,
+# preventing race conditions where two simultaneous requests both pass the limit check.
+_user_locks: dict[str, asyncio.Lock] = {}
+
+
+def _get_user_lock(user_id: str) -> asyncio.Lock:
+    if user_id not in _user_locks:
+        _user_locks[user_id] = asyncio.Lock()
+    return _user_locks[user_id]
 
 
 class Filter:
@@ -22,17 +33,25 @@ class Filter:
         if not __user__:
             return body
         user = UserModel(**__user__)
-        try:
-            await check_token_limit(user)
-        except HTTPException as e:
-            raise Exception(e.detail)
+
+        lock = _get_user_lock(user.id)
+        async with lock:
+            try:
+                budget = await get_remaining_token_budget(user)
+            except HTTPException as e:
+                raise Exception(e.detail)
+
+            if budget is not None:
+                # Cap this response to the remaining budget so a single reply cannot overshoot.
+                existing_max = body.get(\'max_tokens\') or budget
+                body[\'max_tokens\'] = min(existing_max, budget)
 
         # Inject stream_options so OpenAI-compatible providers always return usage data.
         # Ollama payloads are converted server-side and this key is stripped automatically.
-        if body.get('stream', True):
-            so = body.get('stream_options') or {}
-            if not so.get('include_usage'):
-                body['stream_options'] = {**so, 'include_usage': True}
+        if body.get(\'stream\', True):
+            so = body.get(\'stream_options\') or {}
+            if not so.get(\'include_usage\'):
+                body[\'stream_options\'] = {**so, \'include_usage\': True}
 
         return body
 '''

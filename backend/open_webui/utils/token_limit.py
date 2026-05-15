@@ -186,3 +186,59 @@ def _raise_limit_exceeded(usage: int, limit: int, period: str) -> None:
         status_code=429,
         detail=f'Token 使用額度已達上限（已用 {usage:,} / 上限 {limit:,} tokens，{period_label}額度）。請等待下個周期後再試。',
     )
+
+
+async def get_remaining_token_budget(user: UserModel, db=None) -> int | None:
+    """
+    Return the remaining token budget for the most binding active limit.
+    Raises HTTP 429 (same messages as check_token_limit) if already exceeded.
+    Returns None if the user is unlimited.
+    Returns a positive integer representing remaining tokens if under the limit.
+    """
+    async with get_async_db_context(db) as db:
+        # 1. Personal override — individual usage, takes priority
+        user_info = user.info or {}
+        user_token_limit = user_info.get('token_limit', {})
+        if user_token_limit.get('enabled'):
+            limit = user_token_limit.get('limit', 0)
+            period = user_token_limit.get('period', 'daily')
+            if limit > 0:
+                usage = await ChatMessages.get_user_token_usage_since(
+                    user.id, get_period_start(period), db
+                )
+                if usage >= limit:
+                    _raise_limit_exceeded(usage, limit, period)
+                return limit - usage
+            return None
+
+        # 2. Group limits — check all active periods, return minimum remaining
+        groups = await Groups.get_groups_by_member_id(user.id, db)
+        period_best = _get_best_group_per_period(groups)
+        if not period_best:
+            return None
+
+        min_remaining: int | None = None
+        for period, cfg in period_best.items():
+            group = cfg['group']
+            limit = cfg['limit']
+            member_ids = await Groups.get_group_user_ids_by_id(group.id, db)
+            if not member_ids:
+                continue
+            group_usage = await ChatMessages.get_group_token_usage_since(
+                member_ids, get_period_start(period), db
+            )
+            if group_usage >= limit:
+                period_label = {'daily': '每日', 'weekly': '每週', 'monthly': '每月'}.get(period, period)
+                raise HTTPException(
+                    status_code=429,
+                    detail=(
+                        f'群組「{group.name}」Token 使用額度已達上限'
+                        f'（已用 {group_usage:,} / 上限 {limit:,} tokens，{period_label}額度）。'
+                        f'請等待下個周期後再試。'
+                    ),
+                )
+            remaining = limit - group_usage
+            if min_remaining is None or remaining < min_remaining:
+                min_remaining = remaining
+
+        return min_remaining
