@@ -2104,6 +2104,7 @@
 	"Token Rate Limiting": "Token 限流",
 	"Token Rate Limiting (Override)": "Token 限流（个人覆盖）",
 	"Token Usage": "Token 用量",
+	"Your token consumption for each time period.": "各时段的 Token 使用量。",
 	"Enable Token Rate Limit": "启用 Token 限流",
 	"tokens": "tokens",
 	"Tokens": "Tokens",

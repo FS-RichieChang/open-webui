@@ -687,6 +687,20 @@ async def get_user_groups_by_id(
 
 
 ############################
+# UserTokenUsage (self)
+############################
+
+
+@router.get('/me/token-usage')
+async def get_own_token_usage(
+    session_user=Depends(get_verified_user), db: AsyncSession = Depends(get_async_session)
+):
+    from open_webui.utils.token_limit import get_token_usage_info
+
+    return await get_token_usage_info(session_user, db)
+
+
+############################
 # UserTokenLimit
 ############################
 
