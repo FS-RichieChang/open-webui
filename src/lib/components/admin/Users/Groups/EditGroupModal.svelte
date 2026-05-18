@@ -236,7 +236,7 @@
 								{:else if selectedTab == 'permissions'}
 									<Permissions bind:permissions {defaultPermissions} />
 								{:else if selectedTab == 'token_limit'}
-									<TokenRateLimit bind:permissions />
+									<TokenRateLimit bind:permissions groupId={group?.id ?? null} />
 								{:else if selectedTab == 'users'}
 									<Users bind:userCount groupId={group?.id} />
 								{/if}
