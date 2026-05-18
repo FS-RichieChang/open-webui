@@ -1,6 +1,6 @@
 # Token Rate Limiting for Users and Groups
 
-**日期**：2026-05-07（持續更新至 2026-05-15）
+**日期**：2026-05-07（持續更新至 2026-05-18）
 **分支**：`claude/add-user-group-settings-Ci255`
 **Commits**：
 - `fdb5c4c6` — feat: add token rate limiting for users and groups
@@ -15,6 +15,7 @@
 - `0b005aa1` — fix: inject stream_options include_usage in enterprise filter inlet
 - `b8b4523d` — feat: add token usage settings tab for regular users
 - `b4b465b9` — feat: enforce token limit immediately with per-user lock and max_tokens cap
+- `8cfa1c0e` — feat: fix group token usage display and add admin overview page
 
 ---
 
@@ -28,6 +29,9 @@
 |------|------|
 | `backend/open_webui/utils/token_limit.py` | 核心限流邏輯：計算有效限制、查詢用量、拋出 429、回傳三周期用量、計算剩餘預算 |
 | `backend/open_webui/utils/enterprise_setup.py` | 企業 Filter 自動部署：啟動時將限流 Filter 寫入 DB，確保永遠存在 |
+| `backend/open_webui/routers/enterprise.py` | Enterprise API router：`GET /api/v1/enterprise/groups/token-usage` 群組用量總覽端點 |
+| `src/lib/apis/enterprise/index.ts` | 前端 Enterprise API client |
+| `src/routes/(app)/admin/group-token-usage/+page.svelte` | 管理員群組 Token 用量總覽頁（period 篩選、進度條、重置時間） |
 | `src/lib/components/chat/Settings/TokenUsage.svelte` | 使用者個人設定頁的 Token 用量顯示元件（每日／本週／本月） |
 | `docs/ai-changelog/2026-05-07-token-rate-limiting.md` | 本文件 |
 
@@ -38,11 +42,12 @@
 | `backend/open_webui/models/chat_messages.py` | 新增 `get_user_token_usage_since()`、`get_group_token_usage_since()` 方法 |
 | `backend/open_webui/models/users.py` | 新增 `UserTokenLimitForm` Pydantic schema |
 | `backend/open_webui/routers/users.py` | 新增 `GET/PUT /{user_id}/token-limit`、`GET /{user_id}/token-usage` 共三個 Admin API 端點；新增 `GET /me/token-usage` 供一般使用者查詢自身用量 |
-| `backend/open_webui/main.py` | lifespan 加入 `seed_enterprise_filters()` 啟動呼叫（2 行） |
+| `backend/open_webui/main.py` | lifespan 加入 `seed_enterprise_filters()` 啟動呼叫；新增 enterprise router 掛載 |
 | `src/lib/constants/permissions.ts` | `DEFAULT_PERMISSIONS` 加入 `token_limit` 預設值 |
 | `src/lib/apis/users/index.ts` | 新增 `getUserTokenLimit()`、`updateUserTokenLimit()`、`getUserTokenUsage()`、`getMyTokenUsage()` |
-| `src/lib/components/admin/Users/Groups/Permissions.svelte` | 群組權限頁新增 Token Rate Limiting 區塊 |
-| `src/lib/components/admin/Users/UserList/EditUserModal.svelte` | 使用者編輯 modal 新增 Token Usage 用量顯示區塊與個人限流覆蓋設定 |
+| `src/lib/components/admin/Users/Groups/Permissions.svelte` | 群組權限頁新增 Token Rate Limiting 區塊；標題旁加「查看用量 →」連結 |
+| `src/lib/components/admin/Users/UserList/EditUserModal.svelte` | 使用者編輯 modal 新增 Token Usage 顯示區塊；群組限流時改用共享池用量計算進度條，個人用量列為次要參考 |
+| `src/lib/components/chat/Settings/TokenUsage.svelte` | 群組限流時改用共享池用量計算進度條 |
 | `src/lib/components/chat/SettingsModal.svelte` | 個人設定 modal 新增「Token Usage」頁籤 |
 | `src/lib/i18n/locales/en-US/translation.json` | 新增翻譯鍵值 |
 | `src/lib/i18n/locales/zh-TW/translation.json` | 新增繁體中文翻譯 |
@@ -85,6 +90,26 @@
 
 `token_limit.py` 新增 `get_remaining_token_budget()`，與 `check_token_limit` 共用查詢邏輯，只做一次 DB round-trip 即可同時完成「是否超限」與「剩餘多少」兩個判斷。
 
+### 修正群組用量顯示 + 管理員總覽頁（`8cfa1c0e`）
+
+**問題背景**：UI 顯示的進度條和剩餘量基於使用者**個人**用量計算，但群組限流的配額是**群組共享池（所有成員加總）**，導致使用者看到的剩餘量偏高，不反映真實狀況。
+
+**修正方式**：
+
+重構 `get_token_usage_info()`——群組限流 period 現在額外查詢群組共享池用量，回傳新欄位：
+- `is_group_limit: true`：本 period 的 limit 來自群組
+- `group_used`：群組所有成員的總 Token 用量
+- `group_remaining`：群組實際剩餘額度
+- `group_name`：生效的群組名稱
+
+前端 `EditUserModal.svelte` 與 `TokenUsage.svelte` 改用 `group_used / limit` 計算進度條；剩餘量顯示 `group_remaining`。admin 視角額外顯示個人用量（`Personal: X tokens · GroupName`）供追蹤個人貢獻。
+
+**新增管理員群組總覽頁**（全新檔案，不影響 upstream rebase）：
+- `backend/open_webui/routers/enterprise.py`：新 `GET /api/v1/enterprise/groups/token-usage` 端點，回傳所有啟用限流的群組及其當期共享池用量
+- `src/lib/apis/enterprise/index.ts`：前端 API client
+- `src/routes/(app)/admin/group-token-usage/+page.svelte`：表格顯示群組名稱、period、已用 / 上限、進度條、重置時間；支援 period 篩選
+- `Permissions.svelte` Token Rate Limiting 標題旁新增「查看用量 →」連結
+
 ---
 
 ## 2. 修改原因
@@ -123,10 +148,11 @@
 - 每次聊天請求新增 `chat_message` 表的聚合查詢（`SUM` of tokens since period start）。
 
 ### 前端
-- Admin → Users → Groups → Permissions 頁底部新增「Token Rate Limiting」設定區塊。
-- Admin → Users → Edit User modal 新增「Token Usage」用量顯示區塊（今日／本週／本月，有設限時顯示進度條與重置時間）。
+- Admin → Users → Groups → Permissions 頁底部新增「Token Rate Limiting」設定區塊；標題旁有「查看用量 →」連結。
+- Admin → Users → Edit User modal 新增「Token Usage」用量顯示區塊（群組限流時顯示共享池用量與進度條；個人用量列為次要參考）。
 - Admin → Users → Edit User modal 新增「Token Rate Limiting (Override)」個人限流覆蓋設定區塊。
-- Settings modal 新增「Token Usage」頁籤（有設限的使用者才顯示），供一般使用者自助查看三個周期用量。
+- Settings modal 新增「Token Usage」頁籤，供一般使用者自助查看三個周期用量（群組限流時顯示共享池用量）。
+- `/admin/group-token-usage` 新管理員頁面，顯示所有啟用限流的群組及其當期共享池使用情況。
 
 ---
 
@@ -135,7 +161,7 @@
 1. **效能**：每次聊天請求都會查詢 `chat_message` 表加總 Token，群組模式下還需查詢群組成員 ID。資料量大時查詢可能變慢，建議屆時加 Redis 快取。
 2. **SQLite 並發**：預設使用 SQLite，單一寫入鎖在高並發情況下可能造成排隊。使用者規模超過 50-100 人時建議切換 PostgreSQL。
 3. **直接連接不受限**：`generate_direct_chat_completion()` 路徑不經過 Filter inlet，目前不受限流影響。
-4. **UI 顯示限制**：EditUserModal 的 Token Usage 顯示的是個人用量，但套用群組限流時限額是群組共享池總量。兩者基準不同，剩餘量顯示可能有誤差（實際執行以群組總用量為準）。
+4. ~~**UI 顯示限制**~~：已修正（`8cfa1c0e`）。群組限流時 UI 現在正確顯示群組共享池用量。
 5. **時區**：周期起算以 UTC 為準，若使用者在不同時區，「每日」重置時間會有差異。
 6. **Token 估算誤差**：`chat_message.usage` 的數值來自 LLM Provider 回報，部分 Provider 的計算方式與實際計費可能有落差。
 7. **Filter 保護**：`enterprise_setup.py` 在每次啟動時確認 Filter 存在且為 active/global，即使管理員誤刪或停用，下次重啟會自動恢復。
@@ -146,7 +172,7 @@
 
 - [ ] **Redis 快取**：將當前周期累計用量快取至 Redis，減少 DB 查詢次數，提升高流量下的效能。
 - [ ] **直接連接限流**：`generate_direct_chat_completion()` 路徑目前不受限，若有需要需另行加入。
-- [ ] **UI 群組用量顯示**：EditUserModal 的「用量 / 上限」在群組限流模式下應顯示群組總用量，而非個人用量，需修改 `get_token_usage_info` 回傳結構與前端顯示邏輯。
+- [x] **UI 群組用量顯示**：EditUserModal 與 TokenUsage.svelte 改用群組共享池用量計算進度條；新增管理員群組總覽頁。（`8cfa1c0e`）
 - [x] **使用者自助查詢**：在個人設定頁新增「Token Usage」頁籤，讓使用者不必等到 429 才知道快超限。（`b8b4523d`）
 - [ ] **其他語言 i18n**：en-US、zh-TW、zh-CN、de-DE 已完整翻譯；其餘 57 個語系為空字串佔位，需各語系貢獻者補譯。
 - [ ] **自動重置通知**：周期重置後可考慮透過 WebSocket 推播通知給受限使用者。
