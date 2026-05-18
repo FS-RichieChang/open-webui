@@ -2316,5 +2316,16 @@
 	"Your usage stats have been successfully synced.": "Käyttötilastosi on synkronoitu onnistuneesti.",
 	"YouTube": "YouTube",
 	"Youtube Language": "Youtube kieli",
-	"Youtube Proxy URL": "Youtube-välityspalvelimen verkko-osoite"
+	"Youtube Proxy URL": "Youtube-välityspalvelimen verkko-osoite",
+	"Token Limit": "",
+	"Token Rate Limiting": "",
+	"Token Rate Limiting (Override)": "",
+	"Token Usage": "",
+	"Enable Token Rate Limit": "",
+	"This Month": "",
+	"This Week": "",
+	"Remaining": "",
+	"Resets at": "",
+	"Unlimited": "",
+	"Period": ""
 }

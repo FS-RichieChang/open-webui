@@ -238,6 +238,12 @@ class UserRoleUpdateForm(BaseModel):
     role: str
 
 
+class UserTokenLimitForm(BaseModel):
+    enabled: bool
+    limit: int
+    period: str  # 'daily' | 'weekly' | 'monthly'
+
+
 class UserUpdateForm(BaseModel):
     role: Optional[str] = None
     name: Optional[str] = None

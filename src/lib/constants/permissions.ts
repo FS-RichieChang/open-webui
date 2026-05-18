@@ -68,5 +68,10 @@ export const DEFAULT_PERMISSIONS = {
 	},
 	settings: {
 		interface: true
+	},
+	token_limit: {
+		enabled: false,
+		limit: 0,
+		period: 'daily'
 	}
 } as const;

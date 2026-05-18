@@ -2316,5 +2316,16 @@
 	"Your usage stats have been successfully synced.": "Tá do staitisticí úsáide sioncronaithe go rathúil.",
 	"YouTube": "YouTube",
 	"Youtube Language": "Teanga YouTube",
-	"Youtube Proxy URL": "URL Seachfhreastalaí YouTube"
+	"Youtube Proxy URL": "URL Seachfhreastalaí YouTube",
+	"Token Limit": "",
+	"Token Rate Limiting": "",
+	"Token Rate Limiting (Override)": "",
+	"Token Usage": "",
+	"Enable Token Rate Limit": "",
+	"This Month": "",
+	"This Week": "",
+	"Remaining": "",
+	"Resets at": "",
+	"Unlimited": "",
+	"Period": ""
 }

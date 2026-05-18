@@ -26,6 +26,7 @@ from open_webui.models.users import (
     Users,
     UserSettings,
     UserUpdateForm,
+    UserTokenLimitForm,
 )
 
 from open_webui.constants import ERROR_MESSAGES
@@ -683,3 +684,63 @@ async def get_user_groups_by_id(
     user_id: str, user=Depends(get_admin_user), db: AsyncSession = Depends(get_async_session)
 ):
     return await Groups.get_groups_by_member_id(user_id, db=db)
+
+
+############################
+# UserTokenUsage (self)
+############################
+
+
+@router.get('/me/token-usage')
+async def get_own_token_usage(
+    session_user=Depends(get_verified_user), db: AsyncSession = Depends(get_async_session)
+):
+    from open_webui.utils.token_limit import get_token_usage_info
+
+    return await get_token_usage_info(session_user, db)
+
+
+############################
+# UserTokenLimit
+############################
+
+
+@router.get('/{user_id}/token-limit')
+async def get_user_token_limit(
+    user_id: str, session_user=Depends(get_admin_user), db: AsyncSession = Depends(get_async_session)
+):
+    user = await Users.get_user_by_id(user_id, db=db)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=ERROR_MESSAGES.NOT_FOUND)
+    info = user.info or {}
+    return info.get('token_limit', {'enabled': False, 'limit': 0, 'period': 'daily'})
+
+
+@router.get('/{user_id}/token-usage')
+async def get_user_token_usage_by_id(
+    user_id: str, session_user=Depends(get_admin_user), db: AsyncSession = Depends(get_async_session)
+):
+    from open_webui.utils.token_limit import get_token_usage_info
+
+    user = await Users.get_user_by_id(user_id, db=db)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=ERROR_MESSAGES.NOT_FOUND)
+    return await get_token_usage_info(user, db)
+
+
+@router.put('/{user_id}/token-limit')
+async def update_user_token_limit(
+    user_id: str,
+    form_data: UserTokenLimitForm,
+    session_user=Depends(get_admin_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    user = await Users.get_user_by_id(user_id, db=db)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=ERROR_MESSAGES.NOT_FOUND)
+    existing_info = user.info or {}
+    updated_info = {**existing_info, 'token_limit': form_data.model_dump()}
+    updated = await Users.update_user_by_id(user_id, {'info': updated_info}, db=db)
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=ERROR_MESSAGES.DEFAULT())
+    return updated_info.get('token_limit')

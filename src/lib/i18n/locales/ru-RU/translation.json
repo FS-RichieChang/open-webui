@@ -2322,5 +2322,16 @@
 	"Your usage stats have been successfully synced.": "Ваша статистика использования успешно синхронизирована.",
 	"YouTube": "YouTube",
 	"Youtube Language": "Язык YouTube",
-	"Youtube Proxy URL": "URL прокси для YouTube"
+	"Youtube Proxy URL": "URL прокси для YouTube",
+	"Token Limit": "",
+	"Token Rate Limiting": "",
+	"Token Rate Limiting (Override)": "",
+	"Token Usage": "",
+	"Enable Token Rate Limit": "",
+	"This Month": "",
+	"This Week": "",
+	"Remaining": "",
+	"Resets at": "",
+	"Unlimited": "",
+	"Period": ""
 }

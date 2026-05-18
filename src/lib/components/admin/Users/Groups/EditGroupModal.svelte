@@ -7,10 +7,12 @@
 	import Modal from '$lib/components/common/Modal.svelte';
 	import General from './General.svelte';
 	import Permissions from './Permissions.svelte';
+	import TokenRateLimit from './TokenRateLimit.svelte';
 	import Users from './Users.svelte';
 	import { DEFAULT_PERMISSIONS } from '$lib/constants/permissions';
 	import UserPlusSolid from '$lib/components/icons/UserPlusSolid.svelte';
 	import WrenchSolid from '$lib/components/icons/WrenchSolid.svelte';
+	import ChartBar from '$lib/components/icons/ChartBar.svelte';
 	import ConfirmDialog from '$lib/components/common/ConfirmDialog.svelte';
 	import XMark from '$lib/components/icons/XMark.svelte';
 
@@ -25,7 +27,7 @@
 
 	export let custom = true;
 
-	export let tabs = ['general', 'permissions', 'users'];
+	export let tabs = ['general', 'permissions', 'token_limit', 'users'];
 
 	let selectedTab = 'general';
 	let loading = false;
@@ -67,7 +69,11 @@
 				access_grants: { ...DEFAULT_PERMISSIONS.access_grants, ...loadedPermissions.access_grants },
 				chat: { ...DEFAULT_PERMISSIONS.chat, ...loadedPermissions.chat },
 				features: { ...DEFAULT_PERMISSIONS.features, ...loadedPermissions.features },
-				settings: { ...DEFAULT_PERMISSIONS.settings, ...loadedPermissions.settings }
+				settings: { ...DEFAULT_PERMISSIONS.settings, ...loadedPermissions.settings },
+				token_limit: {
+					...DEFAULT_PERMISSIONS.token_limit,
+					...(loadedPermissions.token_limit ?? {})
+				}
 			};
 			data = group?.data ?? {};
 
@@ -178,6 +184,24 @@
 								</button>
 							{/if}
 
+							{#if tabs.includes('token_limit')}
+								<button
+									class="px-0.5 py-1 max-w-fit w-fit rounded-lg flex-1 lg:flex-none flex text-right transition {selectedTab ===
+									'token_limit'
+										? ''
+										: ' text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'}"
+									on:click={() => {
+										selectedTab = 'token_limit';
+									}}
+									type="button"
+								>
+									<div class=" self-center mr-2">
+										<ChartBar strokeWidth="2" className="size-4" />
+									</div>
+									<div class=" self-center">{$i18n.t('Token Limit')}</div>
+								</button>
+							{/if}
+
 							{#if tabs.includes('users')}
 								<button
 									class="px-0.5 py-1 max-w-fit w-fit rounded-lg flex-1 lg:flex-none flex text-right transition {selectedTab ===
@@ -211,12 +235,14 @@
 									/>
 								{:else if selectedTab == 'permissions'}
 									<Permissions bind:permissions {defaultPermissions} />
+								{:else if selectedTab == 'token_limit'}
+									<TokenRateLimit bind:permissions groupId={group?.id ?? null} />
 								{:else if selectedTab == 'users'}
 									<Users bind:userCount groupId={group?.id} />
 								{/if}
 							</div>
 
-							{#if ['general', 'permissions'].includes(selectedTab)}
+							{#if ['general', 'permissions', 'token_limit'].includes(selectedTab)}
 								<div class="flex justify-end pt-3 text-sm font-medium gap-1.5">
 									<button
 										class="px-3.5 py-1.5 text-sm font-medium bg-black hover:bg-gray-900 text-white dark:bg-white dark:text-black dark:hover:bg-gray-100 transition rounded-full flex items-center gap-2 whitespace-nowrap {loading

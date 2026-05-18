@@ -1795,7 +1795,7 @@
 	"Searxng search language (all, en, es, de, fr, etc.)": "",
 	"See readme.md for instructions": "निर्देशों के लिए readme.md देखें",
 	"See what's new": "देखें, क्या नया है",
-	"Seed": "सीड्\u200c",
+	"Seed": "सीड्‌",
 	"Select": "",
 	"Select {{modelName}} model": "",
 	"Select a base model": "एक आधार मॉडल का चयन करें",
@@ -2316,5 +2316,16 @@
 	"Your usage stats have been successfully synced.": "",
 	"YouTube": "Youtube",
 	"Youtube Language": "",
-	"Youtube Proxy URL": ""
+	"Youtube Proxy URL": "",
+	"Token Limit": "",
+	"Token Rate Limiting": "",
+	"Token Rate Limiting (Override)": "",
+	"Token Usage": "",
+	"Enable Token Rate Limit": "",
+	"This Month": "",
+	"This Week": "",
+	"Remaining": "",
+	"Resets at": "",
+	"Unlimited": "",
+	"Period": ""
 }

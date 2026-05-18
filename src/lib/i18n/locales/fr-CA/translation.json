@@ -2205,7 +2205,7 @@
 	"Using Entire Document": "",
 	"Using Focused Retrieval": "",
 	"Using the default arena model with all models. Click the plus button to add custom models.": "Utilisation du modèle d'arène par défaut avec tous les modèles. Cliquez sur le bouton plus pour ajouter des modèles personnalisés.",
-	"Valid time units:": "Unités de temps valides\u00a0:",
+	"Valid time units:": "Unités de temps valides :",
 	"Validate certificate": "",
 	"Valves": "Vannes",
 	"Valves updated": "Vannes mises à jour",
@@ -2319,5 +2319,16 @@
 	"Your usage stats have been successfully synced.": "",
 	"YouTube": "YouTube",
 	"Youtube Language": "Langue de Youtube",
-	"Youtube Proxy URL": "URL du proxy YouTube"
+	"Youtube Proxy URL": "URL du proxy YouTube",
+	"Token Limit": "",
+	"Token Rate Limiting": "",
+	"Token Rate Limiting (Override)": "",
+	"Token Usage": "",
+	"Enable Token Rate Limit": "",
+	"This Month": "",
+	"This Week": "",
+	"Remaining": "",
+	"Resets at": "",
+	"Unlimited": "",
+	"Period": ""
 }

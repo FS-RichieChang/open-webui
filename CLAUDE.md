@@ -133,3 +133,55 @@ Filters and Pipes are user-defined Python functions loaded dynamically by `utils
 - All user-facing strings must go through `$i18n.t('...')`.
 - API calls go in `src/lib/apis/<domain>/index.ts`, not inline in components.
 - `WEBUI_API_BASE_URL`, `OLLAMA_API_BASE_URL`, etc. are defined in `src/lib/constants.ts` — always import from there, never hardcode URLs.
+
+## Enterprise Customization Strategy
+
+This fork adds enterprise features on top of upstream open-webui. **The primary goal is to minimize changes to upstream files so that rebasing onto new upstream releases stays manageable.**
+
+### Plugin-First Rule
+
+**Always prefer the open-webui plugin system over patching upstream source files.** Before modifying any existing upstream file, ask: "Can this be done via a Filter, Pipe, Tool, or Action instead?"
+
+| Need | Preferred approach |
+|------|--------------------|
+| Intercept / block chat requests | Global Filter (`inlet` hook) |
+| Post-process LLM responses | Global Filter (`outlet` hook) |
+| Add a new LLM provider or routing logic | Pipe function |
+| Expose a new tool to the model | Tool function |
+| Add a UI action button | Action function |
+| Enforce a policy for all users | Global Filter auto-seeded via `enterprise_setup.py` |
+
+Filters and Pipes live in the `function` DB table. Use `backend/open_webui/utils/enterprise_setup.py` to auto-install/update them at startup so they are always present without manual admin steps.
+
+### When Upstream File Changes Are Unavoidable
+
+Some features genuinely require touching upstream files (new admin UI, new API endpoints, new DB fields). When that happens:
+
+1. **New files are always safe** — put as much logic as possible in new files under `backend/open_webui/utils/` or new Svelte components.
+2. **Append-only to existing files** — add new API endpoints at the *end* of a router file; add new utility functions at the *end* of a utils file. Avoid inserting in the middle of hot code paths.
+3. **Keep diffs minimal** — one clean insertion point per file is easier to re-apply after a rebase than scattered hunks.
+4. **`main.py` lifespan** is the designated place for enterprise startup hooks (e.g., `seed_enterprise_filters()`). Keep additions there small and grouped.
+5. **`chat.py` is high-risk** — it changes on almost every upstream release. Never add logic directly inside `generate_chat_completion()`; use a Filter instead.
+
+### i18n Policy
+
+Only maintain translations for: **en-US, zh-TW, zh-CN, de-DE**. Do not batch-update all other locale files with empty strings — those files change constantly upstream and cause merge conflicts on every rebase. Other locales will fall back to the key string automatically.
+
+### Files We Own (expect to maintain across rebases)
+
+| File | What we added |
+|------|--------------|
+| `backend/open_webui/utils/token_limit.py` | Token rate limit core logic |
+| `backend/open_webui/utils/enterprise_setup.py` | Filter auto-seeding at startup |
+| `backend/open_webui/models/users.py` | `UserTokenLimitForm` schema |
+| `backend/open_webui/models/chat_messages.py` | `get_user_token_usage_since()` |
+| `backend/open_webui/routers/users.py` | Token limit/usage API endpoints |
+| `src/lib/constants/permissions.ts` | `token_limit` in `DEFAULT_PERMISSIONS` |
+| `src/lib/components/admin/Users/Groups/Permissions.svelte` | Token rate limiting UI section |
+| `src/lib/components/admin/Users/UserList/EditUserModal.svelte` | Token usage display + override UI |
+| `src/lib/apis/users/index.ts` | `getUserTokenLimit/Usage`, `updateUserTokenLimit` |
+| `backend/open_webui/main.py` | 2-line startup hook for `seed_enterprise_filters()` |
+| `src/lib/i18n/locales/en-US/translation.json` | New i18n keys |
+| `src/lib/i18n/locales/zh-TW/translation.json` | Traditional Chinese translations |
+| `src/lib/i18n/locales/zh-CN/translation.json` | Simplified Chinese translations |
+| `src/lib/i18n/locales/de-DE/translation.json` | German translations |

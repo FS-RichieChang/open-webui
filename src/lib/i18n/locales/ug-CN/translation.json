@@ -213,7 +213,7 @@
 	"Attach Webpage": "",
 	"Attention to detail": "تەپسىلاتقا دىققەت",
 	"Attribute for Mail": "ئېلىخەت خاسلىقى",
-	"Attribute for Username": "ئىشلەتكۈچى ئىسمى\u00a0 خاسلىقى",
+	"Attribute for Username": "ئىشلەتكۈچى ئىسمى  خاسلىقى",
 	"Audio": "ئاۋاز",
 	"August": "ئاۋغۇست",
 	"Auth": "تەستىقلاش",
@@ -2316,5 +2316,16 @@
 	"Your usage stats have been successfully synced.": "",
 	"YouTube": "Youtube",
 	"Youtube Language": "Youtube تىلى",
-	"Youtube Proxy URL": "Youtube ۋاكالەتچى URL"
+	"Youtube Proxy URL": "Youtube ۋاكالەتچى URL",
+	"Token Limit": "",
+	"Token Rate Limiting": "",
+	"Token Rate Limiting (Override)": "",
+	"Token Usage": "",
+	"Enable Token Rate Limit": "",
+	"This Month": "",
+	"This Week": "",
+	"Remaining": "",
+	"Resets at": "",
+	"Unlimited": "",
+	"Period": ""
 }

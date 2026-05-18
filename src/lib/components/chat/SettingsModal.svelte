@@ -28,6 +28,8 @@
 	import Face from '../icons/Face.svelte';
 	import AppNotification from '../icons/AppNotification.svelte';
 	import UserBadgeCheck from '../icons/UserBadgeCheck.svelte';
+	import TokenUsage from './Settings/TokenUsage.svelte';
+	import ChartBar from '../icons/ChartBar.svelte';
 
 	const i18n = getContext('i18n');
 
@@ -474,6 +476,11 @@
 				'version info',
 				'versioninfo'
 			]
+		},
+		{
+			id: 'token_usage',
+			title: 'Token Usage',
+			keywords: ['token', 'usage', 'rate limit', 'consumption', 'tokens', 'remaining', 'limit']
 		}
 	];
 
@@ -852,6 +859,30 @@
 								</div>
 								<div class=" self-center">{$i18n.t('About')}</div>
 							</button>
+						{:else if tabId === 'token_usage'}
+							<button
+								role="tab"
+								aria-controls="tab-token_usage"
+								aria-selected={selectedTab === 'token_usage'}
+								class={`px-0.5 md:px-2.5 py-1 min-w-fit rounded-xl flex-1 md:flex-none flex text-left transition
+								${
+									selectedTab === 'token_usage'
+										? ($settings?.highContrastMode ?? false)
+											? 'dark:bg-gray-800 bg-gray-200'
+											: ''
+										: ($settings?.highContrastMode ?? false)
+											? 'hover:bg-gray-200 dark:hover:bg-gray-800'
+											: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'
+								}`}
+								on:click={() => {
+									selectedTab = 'token_usage';
+								}}
+							>
+								<div class=" self-center mr-2">
+									<ChartBar strokeWidth="2" />
+								</div>
+								<div class=" self-center">{$i18n.t('Token Usage')}</div>
+							</button>
 						{/if}
 					{/each}
 				{:else}
@@ -936,6 +967,8 @@
 					/>
 				{:else if selectedTab === 'about'}
 					<About />
+				{:else if selectedTab === 'token_usage'}
+					<TokenUsage />
 				{/if}
 			</div>
 		</div>

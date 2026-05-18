@@ -106,6 +106,7 @@ from open_webui.routers import (
     terminals,
     automations,
     calendar,
+    enterprise,
 )
 
 from open_webui.routers.retrieval import (
@@ -664,6 +665,9 @@ async def lifespan(app: FastAPI):
     # when the first user lands on the / route.
     log.info('Installing external dependencies of functions and tools...')
     await install_tool_and_function_dependencies()
+
+    from open_webui.utils.enterprise_setup import seed_enterprise_filters
+    await seed_enterprise_filters()
 
     app.state.redis = get_redis_connection(
         redis_url=REDIS_URL,
@@ -1456,6 +1460,7 @@ app.include_router(utils.router, prefix='/api/v1/utils', tags=['utils'])
 app.include_router(terminals.router, prefix='/api/v1/terminals', tags=['terminals'])
 app.include_router(automations.router, prefix='/api/v1/automations', tags=['automations'])
 app.include_router(calendar.router, prefix='/api/v1/calendars', tags=['calendars'])
+app.include_router(enterprise.router, prefix='/api/v1/enterprise', tags=['enterprise'])
 
 # SCIM 2.0 API for identity management
 if ENABLE_SCIM:
