@@ -1,6 +1,6 @@
 # Token Rate Limiting for Users and Groups
 
-**日期**：2026-05-07（持續更新至 2026-05-13）
+**日期**：2026-05-07（持續更新至 2026-05-15）
 **分支**：`claude/add-user-group-settings-Ci255`
 **Commits**：
 - `fdb5c4c6` — feat: add token rate limiting for users and groups
@@ -13,19 +13,22 @@
 - `79795feb` — feat: group token limit uses shared pool with independent period checks
 - `b334967c` — fix: group token limit uses most permissive group per period
 - `0b005aa1` — fix: inject stream_options include_usage in enterprise filter inlet
+- `b8b4523d` — feat: add token usage settings tab for regular users
+- `b4b465b9` — feat: enforce token limit immediately with per-user lock and max_tokens cap
 
 ---
 
 ## 1. 修改摘要
 
-新增對使用者與群組的 Token 用量**限流**與**用量顯示**功能。管理員可在群組權限設定或使用者編輯頁面，設定每個周期（每日／每週／每月）的 Token 上限。當使用者累計用量達到上限時，系統拒絕新的聊天請求並回傳 HTTP 429。此外，管理員編輯任一使用者時，可直接看到該使用者今日／本週／本月的 Token 用量，有設限時並顯示進度條與重置時間。
+新增對使用者與群組的 Token 用量**限流**與**用量顯示**功能。管理員可在群組權限設定或使用者編輯頁面，設定每個周期（每日／每週／每月）的 Token 上限。當使用者累計用量達到上限時，系統拒絕新的聊天請求並回傳 HTTP 429。此外，管理員編輯任一使用者時，可直接看到該使用者今日／本週／本月的 Token 用量，有設限時並顯示進度條與重置時間。一般使用者也可在個人設定頁查看自己的用量。
 
 ### 新增檔案
 
 | 檔案 | 說明 |
 |------|------|
-| `backend/open_webui/utils/token_limit.py` | 核心限流邏輯：計算有效限制、查詢用量、拋出 429、回傳三周期用量 |
+| `backend/open_webui/utils/token_limit.py` | 核心限流邏輯：計算有效限制、查詢用量、拋出 429、回傳三周期用量、計算剩餘預算 |
 | `backend/open_webui/utils/enterprise_setup.py` | 企業 Filter 自動部署：啟動時將限流 Filter 寫入 DB，確保永遠存在 |
+| `src/lib/components/chat/Settings/TokenUsage.svelte` | 使用者個人設定頁的 Token 用量顯示元件（每日／本週／本月） |
 | `docs/ai-changelog/2026-05-07-token-rate-limiting.md` | 本文件 |
 
 ### 修改檔案
@@ -34,12 +37,13 @@
 |------|---------|
 | `backend/open_webui/models/chat_messages.py` | 新增 `get_user_token_usage_since()`、`get_group_token_usage_since()` 方法 |
 | `backend/open_webui/models/users.py` | 新增 `UserTokenLimitForm` Pydantic schema |
-| `backend/open_webui/routers/users.py` | 新增 `GET/PUT /{user_id}/token-limit`、`GET /{user_id}/token-usage` 共三個 Admin API 端點 |
+| `backend/open_webui/routers/users.py` | 新增 `GET/PUT /{user_id}/token-limit`、`GET /{user_id}/token-usage` 共三個 Admin API 端點；新增 `GET /me/token-usage` 供一般使用者查詢自身用量 |
 | `backend/open_webui/main.py` | lifespan 加入 `seed_enterprise_filters()` 啟動呼叫（2 行） |
 | `src/lib/constants/permissions.ts` | `DEFAULT_PERMISSIONS` 加入 `token_limit` 預設值 |
-| `src/lib/apis/users/index.ts` | 新增 `getUserTokenLimit()`、`updateUserTokenLimit()`、`getUserTokenUsage()` |
+| `src/lib/apis/users/index.ts` | 新增 `getUserTokenLimit()`、`updateUserTokenLimit()`、`getUserTokenUsage()`、`getMyTokenUsage()` |
 | `src/lib/components/admin/Users/Groups/Permissions.svelte` | 群組權限頁新增 Token Rate Limiting 區塊 |
 | `src/lib/components/admin/Users/UserList/EditUserModal.svelte` | 使用者編輯 modal 新增 Token Usage 用量顯示區塊與個人限流覆蓋設定 |
+| `src/lib/components/chat/SettingsModal.svelte` | 個人設定 modal 新增「Token Usage」頁籤 |
 | `src/lib/i18n/locales/en-US/translation.json` | 新增翻譯鍵值 |
 | `src/lib/i18n/locales/zh-TW/translation.json` | 新增繁體中文翻譯 |
 | `src/lib/i18n/locales/zh-CN/translation.json` | 新增簡體中文翻譯 |
@@ -63,6 +67,23 @@
 - **Ollama**：payload 轉換函式 `convert_payload_openai_to_ollama` 只複製已知欄位，此參數自動被忽略（Ollama 天生在 final chunk 回傳 `eval_count`）
 
 同步機制升級：`seed_enterprise_filters()` 現在每次啟動都比對 filter code，有變更即自動更新 DB，不需手動刪除紀錄。
+
+### 使用者自助查詢用量（`b8b4523d`）
+
+一般使用者現在可在個人設定頁的「Token Usage」頁籤查看自己三個周期的用量，無需聯繫管理員。
+
+- 後端新增 `GET /api/v1/users/me/token-usage` 端點，權限為已登入使用者（無需 admin）
+- 前端新增 `TokenUsage.svelte` 元件，顯示每日／本週／本月用量，有設限時同步顯示進度條與重置時間
+- `SettingsModal.svelte` 加入「Token Usage」頁籤，設限使用者才看得到此頁籤
+
+### 並發安全 + max_tokens 防超支（`b4b465b9`）
+
+原本的 inlet 僅做「進門前檢查」，在高並發下兩個同時送出的請求可能都通過檢查，然後雙雙消耗 Token 直到超限。此次升級分兩層封堵：
+
+1. **Per-user asyncio.Lock**：同一使用者的並發請求在 inlet 序列化，確保兩個同時進來的請求不會都通過配額檢查。
+2. **注入 `max_tokens`**：在 inlet 計算剩餘預算（`get_remaining_token_budget()`），將值注入請求的 `max_tokens`，即使 LLM 生成速度快於計費回報，單次回應的 Token 量也被硬性封頂。
+
+`token_limit.py` 新增 `get_remaining_token_budget()`，與 `check_token_limit` 共用查詢邏輯，只做一次 DB round-trip 即可同時完成「是否超限」與「剩餘多少」兩個判斷。
 
 ---
 
@@ -105,6 +126,7 @@
 - Admin → Users → Groups → Permissions 頁底部新增「Token Rate Limiting」設定區塊。
 - Admin → Users → Edit User modal 新增「Token Usage」用量顯示區塊（今日／本週／本月，有設限時顯示進度條與重置時間）。
 - Admin → Users → Edit User modal 新增「Token Rate Limiting (Override)」個人限流覆蓋設定區塊。
+- Settings modal 新增「Token Usage」頁籤（有設限的使用者才顯示），供一般使用者自助查看三個周期用量。
 
 ---
 
@@ -125,7 +147,7 @@
 - [ ] **Redis 快取**：將當前周期累計用量快取至 Redis，減少 DB 查詢次數，提升高流量下的效能。
 - [ ] **直接連接限流**：`generate_direct_chat_completion()` 路徑目前不受限，若有需要需另行加入。
 - [ ] **UI 群組用量顯示**：EditUserModal 的「用量 / 上限」在群組限流模式下應顯示群組總用量，而非個人用量，需修改 `get_token_usage_info` 回傳結構與前端顯示邏輯。
-- [ ] **使用者自助查詢**：在聊天介面或使用者個人設定頁顯示自己的用量，讓使用者不必等到 429 才知道快超限。
+- [x] **使用者自助查詢**：在個人設定頁新增「Token Usage」頁籤，讓使用者不必等到 429 才知道快超限。（`b8b4523d`）
 - [ ] **其他語言 i18n**：en-US、zh-TW、zh-CN、de-DE 已完整翻譯；其餘 57 個語系為空字串佔位，需各語系貢獻者補譯。
 - [ ] **自動重置通知**：周期重置後可考慮透過 WebSocket 推播通知給受限使用者。
 - [ ] **用量報表整合**：在 Admin Analytics 儀表板整合限流設定與實際用量的對照視圖。

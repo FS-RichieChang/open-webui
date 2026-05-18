@@ -996,7 +996,13 @@
 	<hr class=" border-gray-100/30 dark:border-gray-850/30" />
 
 	<div>
-		<div class=" mb-2 text-sm font-medium">{$i18n.t('Token Rate Limiting')}</div>
+		<div class="mb-2 flex items-center justify-between">
+			<div class=" text-sm font-medium">{$i18n.t('Token Rate Limiting')}</div>
+			<a
+				href="/admin/group-token-usage"
+				class="text-xs text-blue-500 hover:underline"
+			>{$i18n.t('View Usage')} →</a>
+		</div>
 
 		<div class="flex flex-col w-full">
 			<div class="flex w-full justify-between my-1">

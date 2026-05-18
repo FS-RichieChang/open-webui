@@ -45,44 +45,88 @@ def get_next_period_start(period: str) -> int:
 
 async def get_token_usage_info(user: UserModel, db=None) -> dict:
     """
-    Return token usage for all three periods (daily/weekly/monthly),
-    regardless of whether a limit is configured.
+    Return token usage for all three periods (daily/weekly/monthly).
 
-    NOTE: 'used' reflects the individual user's personal usage.
-    When a group shared-pool limit applies, the 'limit' shown is the group limit
-    but 'remaining' is computed against personal usage (not group total).
-    This is a known display limitation; enforcement in check_token_limit is accurate.
+    When a group shared-pool limit applies, each active period includes:
+      - is_group_limit: True
+      - group_used: total tokens consumed by all group members
+      - group_remaining: max(0, limit - group_used)
+      - group_name: name of the enforcing group
+    The personal 'used' field is always the individual user's own usage.
     """
     async with get_async_db_context(db) as db:
-        limit_config = await get_effective_token_limit(user, db)
-
-        daily_start = get_period_start('daily')
-        weekly_start = get_period_start('weekly')
-        monthly_start = get_period_start('monthly')
-
         daily_used, weekly_used, monthly_used = await asyncio.gather(
-            ChatMessages.get_user_token_usage_since(user.id, daily_start, db),
-            ChatMessages.get_user_token_usage_since(user.id, weekly_start, db),
-            ChatMessages.get_user_token_usage_since(user.id, monthly_start, db),
+            ChatMessages.get_user_token_usage_since(user.id, get_period_start('daily'), db),
+            ChatMessages.get_user_token_usage_since(user.id, get_period_start('weekly'), db),
+            ChatMessages.get_user_token_usage_since(user.id, get_period_start('monthly'), db),
         )
+        personal_used = {'daily': daily_used, 'weekly': weekly_used, 'monthly': monthly_used}
 
-        def _build_period(used: int, period: str) -> dict:
-            active = limit_config is not None and limit_config.get('period') == period
-            limit = limit_config.get('limit', 0) if active else 0
-            remaining = max(0, limit - used) if active else -1
+        # Personal override: only the configured period is active
+        user_token_limit = (user.info or {}).get('token_limit', {})
+        if user_token_limit.get('enabled'):
+            active_period = user_token_limit.get('period', 'daily')
+            limit = user_token_limit.get('limit', 0)
+
+            def _personal(period: str) -> dict:
+                used = personal_used[period]
+                active = period == active_period
+                return {
+                    'used': used,
+                    'limit': limit if active else 0,
+                    'remaining': max(0, limit - used) if active else -1,
+                    'reset_at': get_next_period_start(period),
+                }
+
             return {
-                'used': used,
-                'limit': limit,
-                'remaining': remaining,
-                'reset_at': get_next_period_start(period),
+                'daily': _personal('daily'),
+                'weekly': _personal('weekly'),
+                'monthly': _personal('monthly'),
+                'limit_config': user_token_limit,
             }
 
-        return {
-            'daily': _build_period(daily_used, 'daily'),
-            'weekly': _build_period(weekly_used, 'weekly'),
-            'monthly': _build_period(monthly_used, 'monthly'),
-            'limit_config': limit_config,
-        }
+        # Group limits: each period independently looks up the winning group's shared pool
+        groups = await Groups.get_groups_by_member_id(user.id, db)
+        period_best = _get_best_group_per_period(groups)
+
+        result: dict = {}
+        for period in ('daily', 'weekly', 'monthly'):
+            used = personal_used[period]
+            if period not in period_best:
+                result[period] = {
+                    'used': used,
+                    'limit': 0,
+                    'remaining': -1,
+                    'reset_at': get_next_period_start(period),
+                }
+                continue
+
+            cfg = period_best[period]
+            group = cfg['group']
+            limit = cfg['limit']
+            member_ids = await Groups.get_group_user_ids_by_id(group.id, db)
+            group_used = (
+                await ChatMessages.get_group_token_usage_since(
+                    member_ids, get_period_start(period), db
+                )
+                if member_ids
+                else 0
+            )
+            result[period] = {
+                'used': used,
+                'limit': limit,
+                'remaining': max(0, limit - used),
+                'reset_at': get_next_period_start(period),
+                'is_group_limit': True,
+                'group_used': group_used,
+                'group_remaining': max(0, limit - group_used),
+                'group_name': group.name,
+            }
+
+        result['limit_config'] = (
+            min(period_best.values(), key=lambda c: c['limit']) if period_best else None
+        )
+        return result
 
 
 async def get_effective_token_limit(user: UserModel, db=None) -> dict | None:
