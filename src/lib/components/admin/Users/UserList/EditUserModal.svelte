@@ -342,7 +342,7 @@
 											<input
 												type="number"
 												min="1"
-												class="w-32 rounded-lg text-sm bg-transparent outline-none border border-gray-100 dark:border-gray-600 px-2 py-1 text-right dark:text-gray-300"
+												class="w-fit rounded-sm px-2 p-1 text-xs bg-transparent outline-hidden text-right"
 												bind:value={tokenLimit.limit}
 											/>
 										</div>
@@ -350,7 +350,7 @@
 										<div class="flex w-full items-center justify-between">
 											<div class="text-xs font-medium">{$i18n.t('Period')}</div>
 											<select
-												class="rounded-lg text-sm bg-transparent outline-none border border-gray-100 dark:border-gray-600 px-2 py-1 dark:text-gray-300"
+												class="w-fit pr-8 rounded-sm px-2 p-1 text-xs bg-transparent outline-hidden text-right"
 												bind:value={tokenLimit.period}
 											>
 												<option value="daily">{$i18n.t('Daily')}</option>
