@@ -743,4 +743,60 @@ async def update_user_token_limit(
     updated = await Users.update_user_by_id(user_id, {'info': updated_info}, db=db)
     if not updated:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=ERROR_MESSAGES.DEFAULT())
-    return updated_info.get('token_limit')
+
+
+############################
+# ModelManagerStatus
+############################
+
+
+class ModelManagerGroupsForm(BaseModel):
+    group_ids: list[str]
+
+
+@router.get('/{user_id}/model-manager')
+async def get_user_model_manager_status(
+    user_id: str,
+    session_user=Depends(get_admin_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    user = await Users.get_user_by_id(user_id, db=db)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=ERROR_MESSAGES.NOT_FOUND)
+
+    authorized_group_ids: list[str] = (user.info or {}).get('model_manager_groups', [])
+
+    user_groups = await Groups.get_groups_by_member_id(user_id, db=db)
+    available_groups = [{'id': g.id, 'name': g.name} for g in user_groups]
+
+    return {'group_ids': authorized_group_ids, 'available_groups': available_groups}
+
+
+@router.post('/{user_id}/model-manager')
+async def set_user_model_manager_status(
+    user_id: str,
+    form_data: ModelManagerGroupsForm,
+    session_user=Depends(get_admin_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    from open_webui.utils.enterprise_setup import MODEL_MANAGERS_GROUP_NAME
+
+    user = await Users.get_user_by_id(user_id, db=db)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=ERROR_MESSAGES.NOT_FOUND)
+
+    existing_info = user.info or {}
+    updated_info = {**existing_info, 'model_manager_groups': form_data.group_ids}
+    updated = await Users.update_user_by_id(user_id, {'info': updated_info}, db=db)
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=ERROR_MESSAGES.DEFAULT())
+
+    # Sync membership in the "Model Managers" group to grant workspace.models permission.
+    model_managers_group = await Groups.get_group_by_name(MODEL_MANAGERS_GROUP_NAME, db=db)
+    if model_managers_group:
+        if form_data.group_ids:
+            await Groups.add_users_to_group(model_managers_group.id, [user_id], db=db)
+        else:
+            await Groups.remove_users_from_group(model_managers_group.id, [user_id], db=db)
+
+    return True

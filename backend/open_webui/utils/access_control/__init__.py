@@ -254,6 +254,36 @@ async def filter_allowed_access_grants(
     ):
         access_grants = strip_user_access_grants(access_grants)
 
+    # Strip group grants for groups outside the user's allowed set.
+    # If the user has model_manager_groups configured, only those specific groups are allowed.
+    # Otherwise, any group the user belongs to is allowed.
+    has_group_grant = any(
+        (grant.get('principal_type') if isinstance(grant, dict) else getattr(grant, 'principal_type', None)) == 'group'
+        for grant in access_grants
+    )
+    if has_group_grant:
+        from open_webui.models.users import Users
+
+        user_obj = await Users.get_user_by_id(user_id, db=db)
+        model_manager_groups: list[str] = (user_obj.info or {}).get('model_manager_groups', []) if user_obj else []
+
+        if model_manager_groups:
+            allowed_group_ids = set(model_manager_groups)
+        else:
+            user_groups = await Groups.get_groups_by_member_id(user_id, db=db)
+            allowed_group_ids = {g.id for g in user_groups}
+
+        access_grants = [
+            grant
+            for grant in access_grants
+            if not (
+                (grant.get('principal_type') if isinstance(grant, dict) else getattr(grant, 'principal_type', None))
+                == 'group'
+                and (grant.get('principal_id') if isinstance(grant, dict) else getattr(grant, 'principal_id', None))
+                not in allowed_group_ids
+            )
+        ]
+
     return access_grants
 
 

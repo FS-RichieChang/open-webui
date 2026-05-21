@@ -11,7 +11,9 @@
 		getUserGroupsById,
 		getUserTokenLimit,
 		updateUserTokenLimit,
-		getUserTokenUsage
+		getUserTokenUsage,
+		getUserModelManagerStatus,
+		setUserModelManagerStatus
 	} from '$lib/apis/users';
 
 	import Modal from '$lib/components/common/Modal.svelte';
@@ -40,6 +42,7 @@
 			loadUserGroups();
 			loadTokenLimit();
 			loadTokenUsage();
+			loadModelManagerStatus();
 		}
 	};
 
@@ -50,6 +53,9 @@
 		email: '',
 		password: ''
 	};
+
+	let modelManagerGroups: string[] = [];
+	let modelManagerAvailableGroups: { id: string; name: string }[] = [];
 
 	let userGroups: any[] | null = null;
 
@@ -80,6 +86,14 @@
 			toast.error(`${error}`);
 		});
 
+		await setUserModelManagerStatus(
+			localStorage.token,
+			selectedUser.id,
+			modelManagerGroups
+		).catch((error) => {
+			toast.error(`${error}`);
+		});
+
 		if (res) {
 			dispatch('save');
 			show = false;
@@ -105,6 +119,24 @@
 	const loadTokenUsage = async () => {
 		if (!selectedUser?.id) return;
 		tokenUsage = await getUserTokenUsage(localStorage.token, selectedUser.id).catch(() => null);
+	};
+
+	const loadModelManagerStatus = async () => {
+		if (!selectedUser?.id) return;
+		const res = await getUserModelManagerStatus(localStorage.token, selectedUser.id).catch(
+			() => null
+		);
+		if (res === null) return;
+		modelManagerGroups = res.group_ids ?? [];
+		modelManagerAvailableGroups = res.available_groups ?? [];
+	};
+
+	const toggleModelManagerGroup = (groupId: string) => {
+		if (modelManagerGroups.includes(groupId)) {
+			modelManagerGroups = modelManagerGroups.filter((id) => id !== groupId);
+		} else {
+			modelManagerGroups = [...modelManagerGroups, groupId];
+		}
 	};
 
 	const formatNumber = (n: number) => n.toLocaleString();
@@ -361,6 +393,41 @@
 									</div>
 								{/if}
 							</div>
+						</div>
+
+						<hr class="my-3 border-gray-100 dark:border-gray-800" />
+
+						<div class="flex flex-col w-full">
+							<div class="mb-1.5 text-xs font-medium text-gray-500">
+								{$i18n.t('Assistant Manager')}
+							</div>
+							<div class="text-xs text-gray-400 mb-2">
+								{$i18n.t('Can create and manage assistants for their own groups')}
+							</div>
+
+							{#if modelManagerAvailableGroups.length === 0}
+								<div class="text-xs text-gray-400 italic">
+									{$i18n.t('No groups assigned to this user')}
+								</div>
+							{:else}
+								<div class="flex flex-col gap-1.5">
+									{#each modelManagerAvailableGroups as group}
+										<label
+											class="flex items-center gap-2 cursor-pointer {_user.id === sessionUser.id
+												? 'opacity-40 pointer-events-none'
+												: ''}"
+										>
+											<input
+												type="checkbox"
+												class="w-3.5 h-3.5 rounded accent-black dark:accent-white"
+												checked={modelManagerGroups.includes(group.id)}
+												on:change={() => toggleModelManagerGroup(group.id)}
+											/>
+											<span class="text-xs">{group.name}</span>
+										</label>
+									{/each}
+								</div>
+							{/if}
 						</div>
 
 						<div class="flex justify-end pt-3 text-sm font-medium">

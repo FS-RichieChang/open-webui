@@ -3,6 +3,15 @@ import time
 
 log = logging.getLogger(__name__)
 
+MODEL_MANAGERS_GROUP_NAME = 'Model Managers'
+_MODEL_MANAGERS_GROUP_PERMISSIONS = {
+    'workspace': {
+        'models': True,
+        'models_import': False,
+        'models_export': False,
+    }
+}
+
 _TOKEN_RATE_LIMIT_FILTER_ID = 'enterprise-token-rate-limit'
 
 # Filter code stored in DB; imports from token_limit.py which lives in our codebase.
@@ -57,6 +66,51 @@ class Filter:
 '''
 
 
+async def seed_model_managers_group() -> None:
+    """
+    Ensure the Model Managers group exists with the correct permissions.
+    Called at startup; safe to run on every restart.
+    """
+    from open_webui.models.groups import Groups, GroupForm, GroupUpdateForm
+    from open_webui.models.users import Users
+
+    group = await Groups.get_group_by_name(MODEL_MANAGERS_GROUP_NAME)
+    if group:
+        perms = group.permissions or {}
+        ws = perms.get('workspace', {})
+        if not ws.get('models'):
+            updated_perms = {**perms, 'workspace': {**ws, 'models': True}}
+            await Groups.update_group_by_id(
+                group.id,
+                GroupUpdateForm(
+                    name=group.name,
+                    description=group.description,
+                    permissions=updated_perms,
+                    data=group.data,
+                ),
+            )
+            log.info('Enterprise: updated Model Managers group permissions')
+        return
+
+    admin = await Users.get_super_admin_user()
+    if not admin:
+        log.warning('Enterprise: no admin user found; skipping Model Managers group creation')
+        return
+
+    result = await Groups.insert_new_group(
+        user_id=admin.id,
+        form_data=GroupForm(
+            name=MODEL_MANAGERS_GROUP_NAME,
+            description='Members can create and manage assistants (models).',
+            permissions=_MODEL_MANAGERS_GROUP_PERMISSIONS,
+        ),
+    )
+    if result:
+        log.info('Enterprise: created Model Managers group (id=%s)', result.id)
+    else:
+        log.warning('Enterprise: failed to create Model Managers group')
+
+
 async def seed_enterprise_filters() -> None:
     """
     Ensure enterprise built-in filters are present and active in the database.
@@ -95,3 +149,5 @@ async def seed_enterprise_filters() -> None:
         log.info('Enterprise filter installed: %s', _TOKEN_RATE_LIMIT_FILTER_ID)
     else:
         log.warning('Failed to install enterprise filter: %s', _TOKEN_RATE_LIMIT_FILTER_ID)
+
+    await seed_model_managers_group()
